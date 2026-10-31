@@ -1,31 +1,31 @@
 import 'package:flutter/foundation.dart';
+
 import '../models/github_user.dart';
 import '../services/github_service.dart';
 import 'network_log_controller.dart';
+import '../models/github_repo.dart';
 
 class GitHubController extends ChangeNotifier {
   final GitHubService _service;
   final NetworkLogController logController;
 
-  GitHubController({
-    GitHubService? service,
-    required this.logController,
-  })  : _service = service ?? GitHubService();
+  GitHubController({GitHubService? service, required this.logController})
+    : _service = service ?? GitHubService();
 
   GitHubUser? _user;
   bool _isLoading = false;
   String? _errorMessage;
   int? _lastStatusCode;
+  List<GitHubRepo> _repos =
+      []; //Almacena repositorios encontrados durante la búsqueda.
 
   GitHubUser? get user => _user;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   int? get lastStatusCode => _lastStatusCode;
+  List<GitHubRepo> get repos => _repos;
 
-  Future<void> fetchUser({
-    String? username,
-    String? token,
-  }) async {
+  Future<void> fetchUser({String? username, String? token}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -45,6 +45,34 @@ class GitHubController extends ChangeNotifier {
       _errorMessage = null;
     } catch (e) {
       _user = null;
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Gestiona la búsqueda y actualiza el estado de la interfaz.
+  Future<void> searchRepositories(String query) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final result = await _service.searchRepositories(
+        query,
+        onLog: (log) {
+          logController.addOrUpdateLog(log);
+          if (!log.isLoading) {
+            _lastStatusCode = log.statusCode;
+          }
+        },
+      );
+
+      _repos = result;
+      _errorMessage = null;
+    } catch (e) {
+      _repos = [];
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
     } finally {
       _isLoading = false;
